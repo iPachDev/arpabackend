@@ -16,6 +16,7 @@ export function validateEnvironment(environment: Environment): Environment {
   const port = Number(environment.PORT ?? 3001);
   const saltRounds = Number(environment.BCRYPT_SALT_ROUNDS ?? 12);
   const sessionTtlDays = Number(environment.SESSION_TTL_DAYS ?? 7);
+  const invitationTtlDays = Number(environment.TEAM_INVITATION_TTL_DAYS ?? 7);
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('PORT debe ser un puerto válido.');
@@ -33,6 +34,16 @@ export function validateEnvironment(environment: Environment): Environment {
     throw new Error('SESSION_TTL_DAYS debe ser un entero entre 1 y 30.');
   }
 
+  if (
+    !Number.isInteger(invitationTtlDays) ||
+    invitationTtlDays < 1 ||
+    invitationTtlDays > 30
+  ) {
+    throw new Error(
+      'TEAM_INVITATION_TTL_DAYS debe ser un entero entre 1 y 30.',
+    );
+  }
+
   return {
     ...environment,
     PORT: String(port),
@@ -43,5 +54,10 @@ export function validateEnvironment(environment: Environment): Environment {
     SESSION_COOKIE_NAME:
       environment.SESSION_COOKIE_NAME?.trim() || 'arpa_session',
     SESSION_TTL_DAYS: String(sessionTtlDays),
+    FRONTEND_URL: environment.FRONTEND_URL?.trim() || 'http://localhost:3000',
+    TEAM_INVITATION_TTL_DAYS: String(invitationTtlDays),
+    RESEND_API_KEY: environment.RESEND_API_KEY?.trim() || '',
+    RESEND_FROM: environment.RESEND_FROM?.trim() || '',
+    RESEND_CONTACT_TO: environment.RESEND_CONTACT_TO?.trim() || '',
   };
 }

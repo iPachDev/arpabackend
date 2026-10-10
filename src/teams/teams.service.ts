@@ -34,7 +34,7 @@ export class TeamsService {
         slug,
         ownerId: new Types.ObjectId(ownerId),
       });
-      return this.toResponse(team);
+      return this.toResponse(team, ownerId);
     } catch (error: unknown) {
       if (this.isDuplicateKeyError(error)) {
         throw new ConflictException(
@@ -46,31 +46,30 @@ export class TeamsService {
   }
 
   async listMine(ownerId: string): Promise<TeamResponseDto[]> {
+    const userObjectId = new Types.ObjectId(ownerId);
     const teams = await this.teamModel
       .find({
-        ownerId: new Types.ObjectId(ownerId),
         status: TeamStatus.ACTIVE,
+        $or: [{ ownerId: userObjectId }, { 'members.userId': userObjectId }],
       })
       .sort({ createdAt: -1 })
       .exec();
 
-    return teams.map((team) => this.toResponse(team));
+    return teams.map((team) => this.toResponse(team, ownerId));
   }
 
-  async getMineBySlug(
-    ownerId: string,
-    slug: string,
-  ): Promise<TeamResponseDto> {
+  async getMineBySlug(ownerId: string, slug: string): Promise<TeamResponseDto> {
+    const userObjectId = new Types.ObjectId(ownerId);
     const team = await this.teamModel
       .findOne({
         slug: slug.trim().toLowerCase(),
-        ownerId: new Types.ObjectId(ownerId),
         status: TeamStatus.ACTIVE,
+        $or: [{ ownerId: userObjectId }, { 'members.userId': userObjectId }],
       })
       .exec();
 
     if (!team) throw new NotFoundException('El equipo no existe.');
-    return this.toResponse(team);
+    return this.toResponse(team, ownerId);
   }
 
   private async availableSlug(name: string): Promise<string> {
@@ -83,12 +82,14 @@ export class TeamsService {
         .replace(/^-|-$/g, '')
         .slice(0, 80) || 'equipo';
     const exists = await this.teamModel.exists({ slug: baseSlug }).exec();
-    return exists
-      ? `${baseSlug}-${randomBytes(3).toString('hex')}`
-      : baseSlug;
+    return exists ? `${baseSlug}-${randomBytes(3).toString('hex')}` : baseSlug;
   }
 
-  private toResponse(team: TeamDocument): TeamResponseDto {
+  private toResponse(team: TeamDocument, userId: string): TeamResponseDto {
+    const membershipRole = team.ownerId.equals(userId)
+      ? TeamMemberRole.OWNER
+      : ((team.members ?? []).find((member) => member.userId.equals(userId))
+          ?.role ?? TeamMemberRole.READER);
     return {
       id: team._id.toString(),
       slug: team.slug,
@@ -98,8 +99,8 @@ export class TeamsService {
       location: team.location,
       description: team.description,
       status: team.status ?? TeamStatus.ACTIVE,
-      membershipRole: TeamMemberRole.OWNER,
-      memberCount: 1,
+      membershipRole,
+      memberCount: 1 + (team.members?.length ?? 0),
       createdAt: team.createdAt,
     };
   }
@@ -113,4 +114,3 @@ export class TeamsService {
     );
   }
 }
-

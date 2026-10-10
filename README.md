@@ -18,6 +18,15 @@ API de ARPA construida con NestJS, MongoDB y Swagger.
 
 3. Asegúrate de que MongoDB esté disponible en la dirección indicada por `MONGODB_URI`.
 
+Para enviar invitaciones configura también:
+
+```env
+RESEND_API_KEY=
+RESEND_FROM=ARPA <equipo@tu-dominio.com>
+RESEND_CONTACT_TO=contacto@tu-dominio.com
+FRONTEND_URL=http://localhost:3000
+```
+
 ## Desarrollo
 
 ```bash
@@ -68,6 +77,10 @@ Los equipos se persisten en MongoDB y el usuario que los crea queda registrado c
 - `POST /api/v1/teams`
 - `GET /api/v1/teams/mine`
 - `GET /api/v1/teams/{slug}`
+- `GET /api/v1/teams/{slug}/members`
+- `POST /api/v1/teams/{slug}/invitations`
+- `GET /api/v1/team-invitations/{token}`
+- `POST /api/v1/team-invitations/{token}/accept`
 
 La documentación detallada vive en [`docs/api/v1/teams`](docs/api/v1/teams) y Swagger identifica el dominio BIAN `Party Reference Data Directory`.
 

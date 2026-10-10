@@ -51,4 +51,3 @@ export class CreateTeamDto {
   })
   description: string;
 }
-

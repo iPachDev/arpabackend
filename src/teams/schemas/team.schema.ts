@@ -25,6 +25,23 @@ export enum TeamMemberRole {
   READER = 'reader',
 }
 
+@Schema({ _id: false })
+export class TeamMember {
+  @Prop({ type: Types.ObjectId, ref: User.name, required: true })
+  userId: Types.ObjectId;
+
+  @Prop({ type: String, enum: TeamMemberRole, required: true })
+  role: TeamMemberRole;
+
+  @Prop({ required: true, trim: true, maxlength: 60 })
+  sportsRole: string;
+
+  @Prop({ required: true, default: Date.now })
+  joinedAt: Date;
+}
+
+export const TeamMemberSchema = SchemaFactory.createForClass(TeamMember);
+
 @Schema({ collection: 'teams', timestamps: true, versionKey: false })
 export class Team {
   @Prop({ required: true, trim: true, maxlength: 100 })
@@ -51,6 +68,9 @@ export class Team {
   @Prop({ type: String, enum: TeamStatus, default: TeamStatus.ACTIVE })
   status: TeamStatus;
 
+  @Prop({ type: [TeamMemberSchema], default: [] })
+  members: TeamMember[];
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,4 +79,3 @@ export type TeamDocument = HydratedDocument<Team>;
 export const TeamSchema = SchemaFactory.createForClass(Team);
 
 TeamSchema.index({ ownerId: 1, createdAt: -1 });
-
