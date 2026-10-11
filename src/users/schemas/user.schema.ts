@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
 export enum UserStatus {
+  PENDING_VERIFICATION = 'pending_verification',
   ACTIVE = 'active',
   DISABLED = 'disabled',
 }
@@ -39,10 +40,25 @@ export class User {
   @Prop({ required: true, select: false })
   passwordHash: string;
 
+  @Prop({ type: String, select: false, default: null })
+  emailVerificationCodeHash: string | null;
+
+  @Prop({ type: Date, select: false, default: null })
+  emailVerificationExpiresAt: Date | null;
+
+  @Prop({ type: Number, select: false, default: 0 })
+  emailVerificationAttempts: number;
+
+  @Prop({ type: Date, select: false, default: null })
+  emailVerificationSentAt: Date | null;
+
+  @Prop({ type: Date, default: null })
+  emailVerifiedAt: Date | null;
+
   @Prop({
     type: String,
     enum: UserStatus,
-    default: UserStatus.ACTIVE,
+    default: UserStatus.PENDING_VERIFICATION,
   })
   status: UserStatus;
 

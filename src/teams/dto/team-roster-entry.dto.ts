@@ -35,4 +35,7 @@ export class TeamRosterEntryDto {
 
   @ApiProperty({ nullable: true, readOnly: true })
   joinedAt: Date | null;
+
+  @ApiProperty({ readOnly: true })
+  isCurrentUser: boolean;
 }

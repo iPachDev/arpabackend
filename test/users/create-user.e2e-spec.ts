@@ -11,7 +11,11 @@ import { UsersService } from '../../src/users/users.service';
 
 describe('POST /api/v1/users', () => {
   let app: INestApplication;
-  const usersService = { create: jest.fn() };
+  const usersService = {
+    create: jest.fn(),
+    verifyEmail: jest.fn(),
+    resendEmailVerification: jest.fn(),
+  };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -41,7 +45,7 @@ describe('POST /api/v1/users', () => {
       name: 'Fernando Pacheco',
       email: 'fernando@example.com',
       phone: '+525512345678',
-      status: UserStatus.ACTIVE,
+      status: UserStatus.PENDING_VERIFICATION,
       createdAt: '2026-09-27T12:00:00.000Z',
     });
 
@@ -73,5 +77,29 @@ describe('POST /api/v1/users', () => {
         phone: '5512345678',
         password: 'corta',
       })
+      .expect(400));
+
+  it('confirma el correo con un OTP de seis dígitos', async () => {
+    usersService.verifyEmail.mockResolvedValue({
+      id: '66f84cbd29d229e491a23362',
+      email: 'fernando@example.com',
+      status: UserStatus.ACTIVE,
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/users/verify-email')
+      .send({ email: ' FERNANDO@EXAMPLE.COM ', code: '123456' })
+      .expect(200);
+
+    expect(usersService.verifyEmail).toHaveBeenCalledWith({
+      email: 'fernando@example.com',
+      code: '123456',
+    });
+  });
+
+  it('rechaza códigos que no tengan seis dígitos', () =>
+    request(app.getHttpServer())
+      .post('/api/v1/users/verify-email')
+      .send({ email: 'fernando@example.com', code: '123' })
       .expect(400));
 });

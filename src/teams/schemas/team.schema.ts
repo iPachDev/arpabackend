@@ -62,11 +62,23 @@ export class Team {
   @Prop({ required: true, trim: true, maxlength: 500 })
   description: string;
 
+  @Prop({ trim: true, maxlength: 2048, default: null })
+  logoImageUrl: string | null;
+
+  @Prop({ trim: true, maxlength: 2048, default: null })
+  coverImageUrl: string | null;
+
   @Prop({ type: Types.ObjectId, ref: User.name, required: true, index: true })
   ownerId: Types.ObjectId;
 
   @Prop({ type: String, enum: TeamStatus, default: TeamStatus.ACTIVE })
   status: TeamStatus;
+
+  @Prop({ default: null })
+  archivedAt: Date | null;
+
+  @Prop({ type: Types.ObjectId, ref: User.name, default: null })
+  archivedByUserId: Types.ObjectId | null;
 
   @Prop({ type: [TeamMemberSchema], default: [] })
   members: TeamMember[];

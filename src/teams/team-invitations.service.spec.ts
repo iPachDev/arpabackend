@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -181,5 +181,121 @@ describe('TeamInvitationsService', () => {
     ).rejects.toThrow(ForbiddenException);
 
     expect(teamModel.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('no expone invitaciones de un equipo archivado', async () => {
+    invitationFindOneExec.mockResolvedValue({
+      teamId: team._id,
+      email: 'mariana@example.com',
+      status: TeamInvitationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 60_000),
+      save: jest.fn(),
+    });
+    teamFindByIdExec.mockResolvedValue({
+      ...team,
+      status: TeamStatus.ARCHIVED,
+    });
+
+    await expect(service.preview('opaque-token')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('permite que un editor expulse a otro integrante', async () => {
+    const editorId = new Types.ObjectId();
+    const memberId = new Types.ObjectId();
+    teamFindOneExec.mockResolvedValue({
+      ...team,
+      members: [
+        {
+          userId: editorId,
+          role: TeamMemberRole.EDITOR,
+          sportsRole: 'Ingeniero de pista',
+          joinedAt: new Date(),
+        },
+        {
+          userId: memberId,
+          role: TeamMemberRole.READER,
+          sportsRole: 'Piloto',
+          joinedAt: new Date(),
+        },
+      ],
+    });
+
+    await service.removeMember(
+      editorId.toString(),
+      team.slug,
+      memberId.toString(),
+    );
+
+    expect(teamModel.updateOne).toHaveBeenCalledWith(
+      { _id: team._id, ownerId: { $ne: memberId } },
+      { $pull: { members: { userId: memberId } } },
+    );
+  });
+
+  it('nunca permite expulsar al owner', async () => {
+    teamFindOneExec.mockResolvedValue(team);
+
+    await expect(
+      service.removeMember(ownerId.toString(), team.slug, ownerId.toString()),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(teamModel.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('impide que un editor se expulse a sí mismo', async () => {
+    const editorId = new Types.ObjectId();
+    teamFindOneExec.mockResolvedValue({
+      ...team,
+      members: [
+        {
+          userId: editorId,
+          role: TeamMemberRole.EDITOR,
+          sportsRole: 'Mecánico',
+          joinedAt: new Date(),
+        },
+      ],
+    });
+
+    await expect(
+      service.removeMember(editorId.toString(), team.slug, editorId.toString()),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(teamModel.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('impide que un lector administre integrantes', async () => {
+    teamFindOneExec.mockResolvedValue(null);
+
+    await expect(
+      service.removeMember(
+        new Types.ObjectId().toString(),
+        team.slug,
+        new Types.ObjectId().toString(),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+
+    expect(teamModel.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('permite cancelar una invitación pendiente', async () => {
+    const invitation = {
+      _id: new Types.ObjectId(),
+      teamId: team._id,
+      status: TeamInvitationStatus.PENDING,
+      save: jest.fn(),
+    };
+    teamFindOneExec.mockResolvedValue(team);
+    invitationFindOneExec.mockResolvedValue(invitation);
+
+    await service.cancelInvitation(
+      ownerId.toString(),
+      team.slug,
+      invitation._id.toString(),
+    );
+
+    expect(invitation.status).toBe(TeamInvitationStatus.CANCELLED);
+    expect(invitation.save).toHaveBeenCalled();
   });
 });

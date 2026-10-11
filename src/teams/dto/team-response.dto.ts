@@ -28,6 +28,18 @@ export class TeamResponseDto {
   @ApiProperty({ example: 'Equipo enfocado en competencias regionales.' })
   description: string;
 
+  @ApiProperty({
+    example: 'https://cdn.example.com/teams/arpa/logo.jpg',
+    nullable: true,
+  })
+  logoImageUrl: string | null;
+
+  @ApiProperty({
+    example: 'https://cdn.example.com/teams/arpa/cover.jpg',
+    nullable: true,
+  })
+  coverImageUrl: string | null;
+
   @ApiProperty({ enum: TeamStatus })
   status: TeamStatus;
 
@@ -39,4 +51,7 @@ export class TeamResponseDto {
 
   @ApiProperty({ example: '2026-10-09T12:00:00.000Z', readOnly: true })
   createdAt: Date;
+
+  @ApiProperty({ example: '2026-10-09T12:00:00.000Z', readOnly: true })
+  updatedAt: Date;
 }

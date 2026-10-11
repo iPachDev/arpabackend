@@ -141,6 +141,7 @@ export class TeamInvitationsService {
         status: TeamRosterStatus.OWNER,
         invitedAt: null,
         joinedAt: team.createdAt,
+        isCurrentUser: owner._id.equals(userId),
       });
     }
 
@@ -161,6 +162,7 @@ export class TeamInvitationsService {
         status: TeamRosterStatus.ACCEPTED,
         invitedAt: acceptedInvitation?.createdAt ?? null,
         joinedAt: member.joinedAt,
+        isCurrentUser: user._id.equals(userId),
       });
     }
 
@@ -176,7 +178,9 @@ export class TeamInvitationsService {
     const invitation = await this.findInvitation(token);
     await this.expireIfNeeded(invitation);
     const team = await this.teamModel.findById(invitation.teamId).exec();
-    if (!team) throw new NotFoundException('El equipo no existe.');
+    if (!team || team.status !== TeamStatus.ACTIVE) {
+      throw new NotFoundException('El equipo no existe.');
+    }
     const existingUser = await this.userModel
       .exists({ email: invitation.email })
       .exec();
@@ -250,6 +254,62 @@ export class TeamInvitationsService {
     return { teamSlug: team.slug, teamName: team.name };
   }
 
+  async removeMember(
+    actorId: string,
+    slug: string,
+    memberId: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(memberId)) {
+      throw new BadRequestException('El integrante no es válido.');
+    }
+
+    const team = await this.findManageableTeam(actorId, slug);
+    const targetId = new Types.ObjectId(memberId);
+    if (team.ownerId.equals(targetId)) {
+      throw new ForbiddenException('No puedes expulsar al owner del equipo.');
+    }
+    if (targetId.equals(actorId)) {
+      throw new ForbiddenException('No puedes expulsarte a ti mismo.');
+    }
+    if (
+      !(team.members ?? []).some((member) => member.userId.equals(targetId))
+    ) {
+      throw new NotFoundException('El integrante no pertenece al equipo.');
+    }
+
+    await this.teamModel
+      .updateOne(
+        { _id: team._id, ownerId: { $ne: targetId } },
+        { $pull: { members: { userId: targetId } } },
+      )
+      .exec();
+  }
+
+  async cancelInvitation(
+    actorId: string,
+    slug: string,
+    invitationId: string,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(invitationId)) {
+      throw new BadRequestException('La invitación no es válida.');
+    }
+
+    const team = await this.findManageableTeam(actorId, slug);
+    const invitation = await this.invitationModel
+      .findOne({
+        _id: new Types.ObjectId(invitationId),
+        teamId: team._id,
+        status: TeamInvitationStatus.PENDING,
+      })
+      .exec();
+    if (!invitation) {
+      throw new NotFoundException('La invitación pendiente no existe.');
+    }
+
+    invitation.status = TeamInvitationStatus.CANCELLED;
+    await invitation.save();
+  }
+
   private async findOwnedTeam(
     ownerId: string,
     slug: string,
@@ -278,6 +338,36 @@ export class TeamInvitationsService {
       })
       .exec();
     if (!team) throw new NotFoundException('El equipo no existe.');
+    return team;
+  }
+
+  private async findManageableTeam(
+    userId: string,
+    slug: string,
+  ): Promise<TeamDocument> {
+    const objectId = new Types.ObjectId(userId);
+    const team = await this.teamModel
+      .findOne({
+        slug: slug.trim().toLowerCase(),
+        status: TeamStatus.ACTIVE,
+        $or: [
+          { ownerId: objectId },
+          {
+            members: {
+              $elemMatch: {
+                userId: objectId,
+                role: TeamMemberRole.EDITOR,
+              },
+            },
+          },
+        ],
+      })
+      .exec();
+    if (!team) {
+      throw new ForbiddenException(
+        'Solo owners y editores pueden administrar integrantes.',
+      );
+    }
     return team;
   }
 
@@ -328,6 +418,7 @@ export class TeamInvitationsService {
       status: invitation.status,
       invitedAt: invitation.createdAt,
       joinedAt: invitation.acceptedAt,
+      isCurrentUser: false,
     };
   }
 

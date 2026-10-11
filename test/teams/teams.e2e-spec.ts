@@ -16,6 +16,7 @@ import {
   TeamPrivacy,
 } from '../../src/teams/schemas/team.schema';
 import { TeamInvitationsService } from '../../src/teams/team-invitations.service';
+import { TeamOwnershipTransfersService } from '../../src/teams/team-ownership-transfers.service';
 import { TeamsController } from '../../src/teams/teams.controller';
 import { TeamsService } from '../../src/teams/teams.service';
 import { UserRole } from '../../src/users/schemas/user.schema';
@@ -28,11 +29,16 @@ describe('Team endpoints', () => {
     create: jest.fn(),
     listMine: jest.fn(),
     getMineBySlug: jest.fn(),
+    update: jest.fn(),
+    archive: jest.fn(),
   };
   const invitationsService = {
     invite: jest.fn(),
     listRoster: jest.fn(),
+    removeMember: jest.fn(),
+    cancelInvitation: jest.fn(),
   };
+  const ownershipTransfersService = { invite: jest.fn() };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -41,6 +47,10 @@ describe('Team endpoints', () => {
         { provide: AuthService, useValue: authService },
         { provide: TeamsService, useValue: teamsService },
         { provide: TeamInvitationsService, useValue: invitationsService },
+        {
+          provide: TeamOwnershipTransfersService,
+          useValue: ownershipTransfersService,
+        },
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'arpa_session') },
@@ -104,6 +114,28 @@ describe('Team endpoints', () => {
     expect(teamsService.create).toHaveBeenCalledWith(userId, input);
   });
 
+  it('crea una transferencia de propiedad para el owner', async () => {
+    ownershipTransfersService.invite.mockResolvedValue({
+      id: 'transfer-id',
+      teamName: 'ARPA Racing Team',
+      email: 'nueva@example.com',
+      status: 'pending',
+      expiresAt: '2026-10-18T12:00:00.000Z',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/teams/arpa-racing-team/ownership-transfers')
+      .set('Cookie', 'arpa_session=session-token')
+      .send({ email: ' NUEVA@EXAMPLE.COM ' })
+      .expect(201);
+
+    expect(ownershipTransfersService.invite).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      { email: 'nueva@example.com' },
+    );
+  });
+
   it('lista los equipos del usuario autenticado', async () => {
     teamsService.listMine.mockResolvedValue([]);
 
@@ -128,4 +160,73 @@ describe('Team endpoints', () => {
         description: 'Equipo enfocado en competencias regionales.',
       })
       .expect(400));
+
+  it('actualiza un equipo del owner', async () => {
+    teamsService.update.mockResolvedValue({
+      id: 'team-id',
+      slug: 'arpa-racing-team',
+      name: 'ARPA Racing Team',
+      description: 'Nueva descripción suficientemente extensa.',
+    });
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/teams/arpa-racing-team')
+      .set('Cookie', 'arpa_session=valid-token')
+      .send({ description: 'Nueva descripción suficientemente extensa.' })
+      .expect(200);
+
+    expect(teamsService.update).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      { description: 'Nueva descripción suficientemente extensa.' },
+    );
+  });
+
+  it('da de baja lógicamente un equipo con confirmación', async () => {
+    teamsService.archive.mockResolvedValue(undefined);
+
+    await request(app.getHttpServer())
+      .delete('/api/v1/teams/arpa-racing-team')
+      .set('Cookie', 'arpa_session=valid-token')
+      .send({ confirmationName: 'ARPA Racing Team' })
+      .expect(204);
+
+    expect(teamsService.archive).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      { confirmationName: 'ARPA Racing Team' },
+    );
+  });
+
+  it('expulsa a un integrante usando el usuario autenticado', async () => {
+    const memberId = '66f84cbd29d229e491a23363';
+    invitationsService.removeMember.mockResolvedValue(undefined);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/teams/arpa-racing-team/members/${memberId}`)
+      .set('Cookie', 'arpa_session=valid-token')
+      .expect(204);
+
+    expect(invitationsService.removeMember).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      memberId,
+    );
+  });
+
+  it('cancela una invitación usando el usuario autenticado', async () => {
+    const invitationId = '66f84cbd29d229e491a23364';
+    invitationsService.cancelInvitation.mockResolvedValue(undefined);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/teams/arpa-racing-team/invitations/${invitationId}`)
+      .set('Cookie', 'arpa_session=valid-token')
+      .expect(204);
+
+    expect(invitationsService.cancelInvitation).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      invitationId,
+    );
+  });
 });

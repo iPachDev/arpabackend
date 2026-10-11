@@ -38,7 +38,7 @@ En el formulario web, el usuario selecciona su país y escribe únicamente su n�
   "name": "Fernando Pacheco",
   "email": "fernando@example.com",
   "phone": "+525512345678",
-  "status": "active",
+  "status": "pending_verification",
   "role": "reader",
   "createdAt": "2026-09-27T12:00:00.000Z"
 }
@@ -46,15 +46,21 @@ En el formulario web, el usuario selecciona su país y escribe únicamente su n�
 
 La contraseña se almacena únicamente como hash bcrypt. Ni la contraseña ni el hash forman parte de la respuesta.
 
+Al crear la cuenta se envía un código OTP de seis dígitos al correo indicado. El código vence en 10 minutos (configurable con `EMAIL_VERIFICATION_TTL_MINUTES`) y se almacena únicamente como hash. La cuenta no puede iniciar sesión hasta confirmar el correo mediante `POST /api/v1/users/verify-email`.
+
+El correo muestra el OTP en grande y también lo incluye al inicio del asunto para consultarlo rápidamente. Si vence, se puede solicitar otro con `POST /api/v1/users/resend-verification`.
+
+Si se repite el registro con un correo que todavía está en `pending_verification`, la API conserva los datos y credenciales originales, genera un OTP nuevo y devuelve nuevamente la cuenta pendiente. Los reenvíos tienen una espera mínima de 60 segundos.
+
 El registro público siempre asigna el rol `reader`. Los roles elevados nunca se aceptan desde este endpoint.
 
 ## Errores
 
-| Estado | Motivo |
-| --- | --- |
-| `400 Bad Request` | Campos faltantes, desconocidos o con formato inválido. |
-| `409 Conflict` | El correo o teléfono ya está registrado. |
-| `500 Internal Server Error` | Error inesperado sin exposición de detalles internos. |
+| Estado                      | Motivo                                                 |
+| --------------------------- | ------------------------------------------------------ |
+| `400 Bad Request`           | Campos faltantes, desconocidos o con formato inválido. |
+| `409 Conflict`              | El correo o teléfono ya está registrado.               |
+| `500 Internal Server Error` | Error inesperado sin exposición de detalles internos.  |
 
 ## Documentación interactiva
 

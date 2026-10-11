@@ -6,8 +6,15 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { randomBytes } from 'crypto';
 import { Model, Types } from 'mongoose';
+import { ArchiveTeamDto } from './dto/archive-team.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { TeamResponseDto } from './dto/team-response.dto';
+import { UpdateTeamDto } from './dto/update-team.dto';
+import {
+  TeamInvitation,
+  TeamInvitationDocument,
+  TeamInvitationStatus,
+} from './schemas/team-invitation.schema';
 import {
   Team,
   TeamDocument,
@@ -20,6 +27,8 @@ export class TeamsService {
   constructor(
     @InjectModel(Team.name)
     private readonly teamModel: Model<TeamDocument>,
+    @InjectModel(TeamInvitation.name)
+    private readonly invitationModel: Model<TeamInvitationDocument>,
   ) {}
 
   async create(
@@ -72,6 +81,60 @@ export class TeamsService {
     return this.toResponse(team, ownerId);
   }
 
+  async update(
+    ownerId: string,
+    slug: string,
+    dto: UpdateTeamDto,
+  ): Promise<TeamResponseDto> {
+    const team = await this.findOwnedActiveTeam(ownerId, slug);
+    Object.assign(team, dto);
+    await team.save();
+    return this.toResponse(team, ownerId);
+  }
+
+  async archive(
+    ownerId: string,
+    slug: string,
+    dto: ArchiveTeamDto,
+  ): Promise<void> {
+    const team = await this.findOwnedActiveTeam(ownerId, slug);
+    if (dto.confirmationName !== team.name) {
+      throw new ConflictException(
+        'El nombre de confirmación no coincide con el equipo.',
+      );
+    }
+
+    team.status = TeamStatus.ARCHIVED;
+    team.archivedAt = new Date();
+    team.archivedByUserId = new Types.ObjectId(ownerId);
+    await team.save();
+
+    await this.invitationModel
+      .updateMany(
+        {
+          teamId: team._id,
+          status: TeamInvitationStatus.PENDING,
+        },
+        { $set: { status: TeamInvitationStatus.CANCELLED } },
+      )
+      .exec();
+  }
+
+  private async findOwnedActiveTeam(
+    ownerId: string,
+    slug: string,
+  ): Promise<TeamDocument> {
+    const team = await this.teamModel
+      .findOne({
+        slug: slug.trim().toLowerCase(),
+        ownerId: new Types.ObjectId(ownerId),
+        status: TeamStatus.ACTIVE,
+      })
+      .exec();
+    if (!team) throw new NotFoundException('El equipo no existe.');
+    return team;
+  }
+
   private async availableSlug(name: string): Promise<string> {
     const baseSlug =
       name
@@ -98,10 +161,13 @@ export class TeamsService {
       privacy: team.privacy,
       location: team.location,
       description: team.description,
+      logoImageUrl: team.logoImageUrl ?? null,
+      coverImageUrl: team.coverImageUrl ?? null,
       status: team.status ?? TeamStatus.ACTIVE,
       membershipRole,
       memberCount: 1 + (team.members?.length ?? 0),
       createdAt: team.createdAt,
+      updatedAt: team.updatedAt,
     };
   }
 
