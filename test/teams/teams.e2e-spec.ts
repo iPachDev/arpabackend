@@ -28,9 +28,11 @@ describe('Team endpoints', () => {
   const teamsService = {
     create: jest.fn(),
     listMine: jest.fn(),
-    getMineBySlug: jest.fn(),
+    getBySlug: jest.fn(),
     update: jest.fn(),
     archive: jest.fn(),
+    uploadPhotos: jest.fn(),
+    uploadImage: jest.fn(),
   };
   const invitationsService = {
     invite: jest.fn(),
@@ -114,6 +116,87 @@ describe('Team endpoints', () => {
     expect(teamsService.create).toHaveBeenCalledWith(userId, input);
   });
 
+  it('sube fotos válidas al equipo autenticado', async () => {
+    teamsService.uploadPhotos.mockResolvedValue({
+      id: 'team-id',
+      slug: 'arpa-racing-team',
+      photoUrls: ['https://signed.example/photo'],
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/teams/arpa-racing-team/photos')
+      .set('Cookie', 'arpa_session=valid-token')
+      .attach(
+        'files',
+        Buffer.from(
+          'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA',
+          'base64',
+        ),
+        { filename: 'team.webp', contentType: 'image/webp' },
+      )
+      .expect(200);
+
+    expect(teamsService.uploadPhotos).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      expect.arrayContaining([
+        expect.objectContaining({ mimetype: 'image/webp' }),
+      ]),
+    );
+  });
+
+  it('rechaza archivos que no sean imágenes válidas', () =>
+    request(app.getHttpServer())
+      .post('/api/v1/teams/arpa-racing-team/photos')
+      .set('Cookie', 'arpa_session=valid-token')
+      .attach('files', Buffer.from('invalid'), {
+        filename: 'team.svg',
+        contentType: 'image/svg+xml',
+      })
+      .expect(400));
+
+  it('sube una portada válida al equipo autenticado', async () => {
+    teamsService.uploadImage.mockResolvedValue({
+      id: 'team-id',
+      slug: 'arpa-racing-team',
+      coverImageUrl: 'https://signed.example/cover',
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/teams/arpa-racing-team/images/cover')
+      .set('Cookie', 'arpa_session=valid-token')
+      .attach(
+        'file',
+        Buffer.from(
+          'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA',
+          'base64',
+        ),
+        { filename: 'cover.webp', contentType: 'image/webp' },
+      )
+      .expect(200);
+
+    expect(teamsService.uploadImage).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+      'cover',
+      expect.objectContaining({ mimetype: 'image/webp' }),
+    );
+  });
+
+  it('rechaza un tipo de imagen de equipo desconocido', () =>
+    request(app.getHttpServer())
+      .post('/api/v1/teams/arpa-racing-team/images/banner')
+      .set('Cookie', 'arpa_session=valid-token')
+      .attach(
+        'file',
+        Buffer.from(
+          'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA',
+          'base64',
+        ),
+        { filename: 'cover.webp', contentType: 'image/webp' },
+      )
+      .expect(400));
+
   it('crea una transferencia de propiedad para el owner', async () => {
     ownershipTransfersService.invite.mockResolvedValue({
       id: 'transfer-id',
@@ -147,6 +230,33 @@ describe('Team endpoints', () => {
 
     expect(teamsService.listMine).toHaveBeenCalledWith(userId);
   });
+
+  it('permite consultar un perfil compartible con sesión', async () => {
+    teamsService.getBySlug.mockResolvedValue({
+      id: 'team-id',
+      slug: 'arpa-racing-team',
+      name: 'ARPA Racing Team',
+      privacy: TeamPrivacy.PUBLIC,
+      membershipRole: null,
+      isPrivateView: false,
+      photoUrls: [],
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/teams/arpa-racing-team')
+      .set('Cookie', 'arpa_session=valid-token')
+      .expect(200);
+
+    expect(teamsService.getBySlug).toHaveBeenCalledWith(
+      userId,
+      'arpa-racing-team',
+    );
+  });
+
+  it('protege el perfil compartible para usuarios sin sesión', () =>
+    request(app.getHttpServer())
+      .get('/api/v1/teams/arpa-racing-team')
+      .expect(401));
 
   it('rechaza una disciplina fuera del catálogo', () =>
     request(app.getHttpServer())

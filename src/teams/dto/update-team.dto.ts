@@ -1,10 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -12,11 +12,6 @@ import { TeamDiscipline, TeamPrivacy } from '../schemas/team.schema';
 
 const normalizeText = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : value;
-
-const normalizeOptionalUrl = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  return value.trim() || null;
-};
 
 export class UpdateTeamDto {
   @ApiPropertyOptional({
@@ -42,6 +37,26 @@ export class UpdateTeamDto {
   privacy?: TeamPrivacy;
 
   @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description:
+      'Permite que usuarios autenticados que no pertenecen al equipo consulten su perfil.',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'La visibilidad para no miembros debe ser booleana.' })
+  allowNonMembers?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description:
+      'Permite mostrar los integrantes aceptados a visitantes del perfil.',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'La visibilidad de integrantes debe ser booleana.' })
+  showMembers?: boolean;
+
+  @ApiPropertyOptional({
     example: 'Ciudad de México',
     minLength: 2,
     maxLength: 120,
@@ -64,30 +79,4 @@ export class UpdateTeamDto {
     message: 'La descripción no puede exceder 500 caracteres.',
   })
   description?: string;
-
-  @ApiPropertyOptional({
-    example: 'https://cdn.example.com/teams/arpa/logo.jpg',
-    nullable: true,
-  })
-  @Transform(normalizeOptionalUrl)
-  @IsOptional()
-  @IsUrl(
-    { protocols: ['http', 'https'], require_protocol: true },
-    { message: 'La URL del logo no es válida.' },
-  )
-  @MaxLength(2048)
-  logoImageUrl?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'https://cdn.example.com/teams/arpa/cover.jpg',
-    nullable: true,
-  })
-  @Transform(normalizeOptionalUrl)
-  @IsOptional()
-  @IsUrl(
-    { protocols: ['http', 'https'], require_protocol: true },
-    { message: 'La URL de portada no es válida.' },
-  )
-  @MaxLength(2048)
-  coverImageUrl?: string | null;
 }

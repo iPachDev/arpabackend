@@ -22,32 +22,70 @@ export class TeamResponseDto {
   @ApiProperty({ enum: TeamPrivacy })
   privacy: TeamPrivacy;
 
-  @ApiProperty({ example: 'Ciudad de México' })
-  location: string;
-
-  @ApiProperty({ example: 'Equipo enfocado en competencias regionales.' })
-  description: string;
+  @ApiProperty({
+    example: false,
+    default: false,
+    description:
+      'Indica si usuarios autenticados que no son integrantes pueden consultar el perfil.',
+  })
+  allowNonMembers: boolean;
 
   @ApiProperty({
-    example: 'https://cdn.example.com/teams/arpa/logo.jpg',
+    example: false,
+    default: false,
+    description:
+      'Indica si los integrantes aceptados son visibles para visitantes.',
+  })
+  showMembers: boolean;
+
+  @ApiProperty({ example: 'Ciudad de México', nullable: true })
+  location: string | null;
+
+  @ApiProperty({
+    example: 'Equipo enfocado en competencias regionales.',
     nullable: true,
+  })
+  description: string | null;
+
+  @ApiProperty({
+    example:
+      'https://arpa.nyc3.digitaloceanspaces.com/teams/id/logo/file.webp?X-Amz-Signature=...',
+    nullable: true,
+    description: 'URL privada firmada con vigencia de cinco minutos.',
   })
   logoImageUrl: string | null;
 
   @ApiProperty({
-    example: 'https://cdn.example.com/teams/arpa/cover.jpg',
+    example:
+      'https://arpa.nyc3.digitaloceanspaces.com/teams/id/cover/file.webp?X-Amz-Signature=...',
     nullable: true,
+    description: 'URL privada firmada con vigencia de cinco minutos.',
   })
   coverImageUrl: string | null;
+
+  @ApiProperty({
+    type: String,
+    isArray: true,
+    description: 'URLs privadas firmadas con vigencia de cinco minutos.',
+  })
+  photoUrls: string[];
 
   @ApiProperty({ enum: TeamStatus })
   status: TeamStatus;
 
-  @ApiProperty({ enum: TeamMemberRole, readOnly: true })
-  membershipRole: TeamMemberRole;
+  @ApiProperty({ enum: TeamMemberRole, nullable: true, readOnly: true })
+  membershipRole: TeamMemberRole | null;
 
-  @ApiProperty({ example: 1, minimum: 1, readOnly: true })
-  memberCount: number;
+  @ApiProperty({ example: 1, minimum: 1, nullable: true, readOnly: true })
+  memberCount: number | null;
+
+  @ApiProperty({
+    example: false,
+    readOnly: true,
+    description:
+      'Indica que el visitante solo puede ver logo, portada y aviso de privacidad.',
+  })
+  isPrivateView: boolean;
 
   @ApiProperty({ example: '2026-10-09T12:00:00.000Z', readOnly: true })
   createdAt: Date;

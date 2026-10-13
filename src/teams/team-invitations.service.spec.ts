@@ -26,6 +26,8 @@ describe('TeamInvitationsService', () => {
   const invitationFindOneExec = jest.fn();
   const userFindByIdExec = jest.fn();
   const userFindOneExec = jest.fn();
+  const userFindExec = jest.fn();
+  const invitationFindExec = jest.fn();
   const teamModel = {
     findOne: jest.fn(() => ({ exec: teamFindOneExec })),
     findById: jest.fn(() => ({ exec: teamFindByIdExec })),
@@ -33,12 +35,16 @@ describe('TeamInvitationsService', () => {
   };
   const invitationModel = {
     findOne: jest.fn(() => ({ exec: invitationFindOneExec })),
+    find: jest.fn(() => ({
+      sort: jest.fn(() => ({ exec: invitationFindExec })),
+    })),
     create: jest.fn(),
     updateMany: jest.fn(() => ({ exec })),
   };
   const userModel = {
     findById: jest.fn(() => ({ exec: userFindByIdExec })),
     findOne: jest.fn(() => ({ exec: userFindOneExec })),
+    find: jest.fn(() => ({ exec: userFindExec })),
   };
   const emailService = { sendTeamInvitation: jest.fn() };
   const configService = {
@@ -277,6 +283,52 @@ describe('TeamInvitationsService', () => {
     ).rejects.toThrow(ForbiddenException);
 
     expect(teamModel.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('muestra integrantes sin correos a un visitante cuando está permitido', async () => {
+    const visitorId = new Types.ObjectId();
+    const memberId = new Types.ObjectId();
+    teamFindOneExec.mockResolvedValue({
+      ...team,
+      privacy: TeamPrivacy.PUBLIC,
+      allowNonMembers: true,
+      showMembers: true,
+      members: [
+        {
+          userId: memberId,
+          role: TeamMemberRole.READER,
+          sportsRole: 'Piloto',
+          joinedAt: new Date(),
+        },
+      ],
+    });
+    userFindByIdExec.mockResolvedValue(inviter);
+    userFindExec.mockResolvedValue([
+      {
+        _id: memberId,
+        name: 'Mariana López',
+        email: 'mariana@example.com',
+      },
+    ]);
+
+    const result = await service.listRoster(visitorId.toString(), team.slug);
+
+    expect(result).toHaveLength(2);
+    expect(result.every((entry) => entry.email === null)).toBe(true);
+    expect(invitationModel.find).not.toHaveBeenCalled();
+  });
+
+  it('oculta integrantes a visitantes cuando la opción está desactivada', async () => {
+    teamFindOneExec.mockResolvedValue({
+      ...team,
+      privacy: TeamPrivacy.PUBLIC,
+      allowNonMembers: true,
+      showMembers: false,
+    });
+
+    await expect(
+      service.listRoster(new Types.ObjectId().toString(), team.slug),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('permite cancelar una invitación pendiente', async () => {

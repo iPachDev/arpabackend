@@ -19,15 +19,12 @@ Actualiza únicamente los campos enviados. Requiere una sesión activa y acepta 
   "city": "Ciudad de México",
   "country": "México",
   "racingNumber": 27,
-  "favoriteCategories": ["karting", "gt"],
-  "favoriteDriver": "Ayrton Senna",
-  "favoriteTrack": "Autódromo Hermanos Rodríguez"
+  "favoriteCategories": ["karting", "gt"]
 }
 ```
 
-No acepta `email`, `role`, `passwordHash`, `avatarUrl` ni `coverUrl`. Los selectores de foto de esta primera versión son vistas previas locales: abren el explorador de archivos, pero todavía no suben ni persisten imágenes.
+No acepta `email`, `role`, `passwordHash`, `avatarUrl` ni `coverUrl`. La foto y la portada se cambian exclusivamente mediante `POST /api/v1/profile/avatar` y `POST /api/v1/profile/cover`.
 
 El teléfono se normaliza al formato internacional E.164. Las categorías admitidas son `karting`, `formula`, `gt`, `rally`, `off-road` y `sim-racing`.
 
 En Swagger, `UpdateProfileDto` documenta cada campo y la ruta indica autenticación por cookie y acceso RBAC. La operación está agrupada en el dominio BIAN `Party Reference Data Directory`.
-

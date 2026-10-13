@@ -9,13 +9,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { compare, hashSync } from 'bcryptjs';
 import { Types } from 'mongoose';
 import { SessionsService } from '../sessions/sessions.service';
-import { RacingInterest, User } from '../users/schemas/user.schema';
+import { StorageService } from '../storage/storage.service';
+import { RacingInterest, User, UserStatus } from '../users/schemas/user.schema';
 import { ProfileService } from './profile.service';
 
 describe('ProfileService', () => {
   let service: ProfileService;
   const findByIdExec = jest.fn();
   const updateExec = jest.fn();
+  const updateQuery = {
+    select: jest.fn(),
+    exec: updateExec,
+  };
+  updateQuery.select.mockReturnValue(updateQuery);
   const findByIdQuery = {
     select: jest.fn(),
     exec: findByIdExec,
@@ -23,9 +29,17 @@ describe('ProfileService', () => {
   findByIdQuery.select.mockReturnValue(findByIdQuery);
   const userModel = {
     findById: jest.fn(() => findByIdQuery),
-    findByIdAndUpdate: jest.fn(() => ({ exec: updateExec })),
+    findByIdAndUpdate: jest.fn(() => updateQuery),
   };
-  const sessionsService = { revokeOthersForUser: jest.fn() };
+  const sessionsService = {
+    revokeOthersForUser: jest.fn(),
+    revokeAllForUser: jest.fn(),
+  };
+  const storageService = {
+    uploadPrivate: jest.fn(),
+    getSignedUrl: jest.fn(),
+    delete: jest.fn(),
+  };
 
   const user = {
     _id: new Types.ObjectId(),
@@ -38,11 +52,11 @@ describe('ProfileService', () => {
     country: 'México',
     racingNumber: 27,
     favoriteCategories: [RacingInterest.KARTING],
-    favoriteDriver: null,
-    favoriteTrack: null,
-    avatarUrl: null,
-    coverUrl: null,
+    avatarObjectKey: null,
+    coverObjectKey: null,
     passwordHash: 'never-return-this',
+    status: UserStatus.ACTIVE,
+    deactivatedAt: null,
   };
 
   beforeEach(async () => {
@@ -51,6 +65,7 @@ describe('ProfileService', () => {
         ProfileService,
         { provide: getModelToken(User.name), useValue: userModel },
         { provide: SessionsService, useValue: sessionsService },
+        { provide: StorageService, useValue: storageService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => '4') },
@@ -145,5 +160,73 @@ describe('ProfileService', () => {
 
     expect(authenticatedUser.save).not.toHaveBeenCalled();
     expect(sessionsService.revokeOthersForUser).not.toHaveBeenCalled();
+  });
+
+  it('sube la portada como recurso privado y guarda solamente su clave', async () => {
+    const persistedUser = { ...user, save: jest.fn() };
+    findByIdExec.mockResolvedValue(persistedUser);
+    storageService.uploadPrivate.mockResolvedValue(
+      `profiles/${user._id}/cover/private.webp`,
+    );
+    storageService.getSignedUrl.mockResolvedValue({
+      url: 'https://spaces.example/private.webp?signature=valid',
+      expiresAt: new Date('2026-10-11T18:05:00.000Z'),
+    });
+
+    const result = await service.updateCover(user._id.toString(), {
+      buffer: Buffer.from('image'),
+      mimetype: 'image/webp',
+    } as Express.Multer.File);
+
+    expect(storageService.uploadPrivate).toHaveBeenCalledWith({
+      buffer: expect.any(Buffer),
+      contentType: 'image/webp',
+      directory: `profiles/${user._id}/cover`,
+    });
+    expect(persistedUser.coverObjectKey).toContain('/cover/private.webp');
+    expect(persistedUser.save).toHaveBeenCalled();
+    expect(result.url).toContain('signature=valid');
+  });
+
+  it('sube el avatar como recurso privado y guarda solamente su clave', async () => {
+    const persistedUser = { ...user, save: jest.fn() };
+    findByIdExec.mockResolvedValue(persistedUser);
+    storageService.uploadPrivate.mockResolvedValue(
+      `profiles/${user._id}/avatar/private.webp`,
+    );
+    storageService.getSignedUrl.mockResolvedValue({
+      url: 'https://spaces.example/avatar.webp?signature=valid',
+      expiresAt: new Date('2026-10-11T18:05:00.000Z'),
+    });
+
+    const result = await service.updateAvatar(user._id.toString(), {
+      buffer: Buffer.from('image'),
+      mimetype: 'image/webp',
+    } as Express.Multer.File);
+
+    expect(storageService.uploadPrivate).toHaveBeenCalledWith({
+      buffer: expect.any(Buffer),
+      contentType: 'image/webp',
+      directory: `profiles/${user._id}/avatar`,
+    });
+    expect(persistedUser.avatarObjectKey).toContain('/avatar/private.webp');
+    expect(persistedUser.save).toHaveBeenCalled();
+    expect(result.url).toContain('signature=valid');
+  });
+
+  it('da de baja la cuenta y revoca todas sus sesiones', async () => {
+    const persistedUser = { ...user, save: jest.fn() };
+    findByIdExec.mockResolvedValue(persistedUser);
+
+    await service.deactivateAccount(user._id.toString(), {
+      confirmation: 'eliminar cuenta',
+    });
+
+    expect(persistedUser.status).toBe(UserStatus.DISABLED);
+    expect(persistedUser.deactivatedAt).toBeInstanceOf(Date);
+    expect(persistedUser.save).toHaveBeenCalled();
+    expect(sessionsService.revokeAllForUser).toHaveBeenCalledWith(
+      user._id.toString(),
+    );
   });
 });

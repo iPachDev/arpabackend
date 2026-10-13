@@ -119,6 +119,18 @@ export class SessionsService {
       .exec();
   }
 
+  async revokeAllForUser(userId: string): Promise<void> {
+    await this.sessionModel
+      .updateMany(
+        {
+          userId: new Types.ObjectId(userId),
+          revokedAt: null,
+        },
+        { $set: { revokedAt: new Date() } },
+      )
+      .exec();
+  }
+
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }

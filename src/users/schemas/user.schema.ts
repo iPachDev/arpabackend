@@ -87,17 +87,14 @@ export class User {
   @Prop({ type: [String], enum: RacingInterest, default: [] })
   favoriteCategories: RacingInterest[];
 
-  @Prop({ type: String, trim: true, maxlength: 100, default: null })
-  favoriteDriver: string | null;
+  @Prop({ type: String, default: null, select: false })
+  avatarObjectKey: string | null;
 
-  @Prop({ type: String, trim: true, maxlength: 100, default: null })
-  favoriteTrack: string | null;
+  @Prop({ type: String, default: null, select: false })
+  coverObjectKey: string | null;
 
-  @Prop({ type: String, default: null })
-  avatarUrl: string | null;
-
-  @Prop({ type: String, default: null })
-  coverUrl: string | null;
+  @Prop({ type: Date, default: null, select: false })
+  deactivatedAt: Date | null;
 
   createdAt: Date;
   updatedAt: Date;

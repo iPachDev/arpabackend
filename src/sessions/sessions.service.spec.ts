@@ -74,4 +74,19 @@ describe('SessionsService', () => {
       { $set: { revokedAt: expect.any(Date) } },
     );
   });
+
+  it('revoca todas las sesiones del usuario', async () => {
+    exec.mockResolvedValue({ modifiedCount: 2 });
+    const userId = new Types.ObjectId().toString();
+
+    await service.revokeAllForUser(userId);
+
+    expect(sessionModel.updateMany).toHaveBeenCalledWith(
+      {
+        userId: new Types.ObjectId(userId),
+        revokedAt: null,
+      },
+      { $set: { revokedAt: expect.any(Date) } },
+    );
+  });
 });

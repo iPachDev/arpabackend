@@ -13,6 +13,25 @@ export function validateEnvironment(environment: Environment): Environment {
     );
   }
 
+  const spacesVariables = [
+    'DIGITALOCEAN_SPACES_ENDPOINT',
+    'DIGITALOCEAN_SPACES_REGION',
+    'DIGITALOCEAN_SPACES_BUCKET',
+    'DIGITALOCEAN_SPACES_ACCESS_KEY',
+    'DIGITALOCEAN_SPACES_SECRET_KEY',
+  ] as const;
+  const configuredSpacesVariables = spacesVariables.filter((variable) =>
+    environment[variable]?.trim(),
+  );
+  if (
+    configuredSpacesVariables.length > 0 &&
+    configuredSpacesVariables.length !== spacesVariables.length
+  ) {
+    throw new Error(
+      'La configuración de DigitalOcean Spaces debe incluir endpoint, región, bucket y ambas credenciales.',
+    );
+  }
+
   const port = Number(environment.PORT ?? 3001);
   const saltRounds = Number(environment.BCRYPT_SALT_ROUNDS ?? 12);
   const sessionTtlDays = Number(environment.SESSION_TTL_DAYS ?? 7);
@@ -115,5 +134,15 @@ export function validateEnvironment(environment: Environment): Environment {
     RESEND_API_KEY: environment.RESEND_API_KEY?.trim() || '',
     RESEND_FROM: environment.RESEND_FROM?.trim() || '',
     RESEND_CONTACT_TO: environment.RESEND_CONTACT_TO?.trim() || '',
+    DIGITALOCEAN_SPACES_ENDPOINT:
+      environment.DIGITALOCEAN_SPACES_ENDPOINT?.trim() || '',
+    DIGITALOCEAN_SPACES_REGION:
+      environment.DIGITALOCEAN_SPACES_REGION?.trim() || '',
+    DIGITALOCEAN_SPACES_BUCKET:
+      environment.DIGITALOCEAN_SPACES_BUCKET?.trim() || '',
+    DIGITALOCEAN_SPACES_ACCESS_KEY:
+      environment.DIGITALOCEAN_SPACES_ACCESS_KEY?.trim() || '',
+    DIGITALOCEAN_SPACES_SECRET_KEY:
+      environment.DIGITALOCEAN_SPACES_SECRET_KEY?.trim() || '',
   };
 }

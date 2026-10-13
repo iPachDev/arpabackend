@@ -18,8 +18,12 @@ export class TeamRosterEntryDto {
   @ApiProperty({ example: 'Mariana López' })
   name: string;
 
-  @ApiProperty({ example: 'mariana@example.com' })
-  email: string;
+  @ApiProperty({
+    example: 'mariana@example.com',
+    nullable: true,
+    description: 'Se oculta para visitantes que no pertenecen al equipo.',
+  })
+  email: string | null;
 
   @ApiProperty({ example: 'Piloto' })
   sportsRole: string;

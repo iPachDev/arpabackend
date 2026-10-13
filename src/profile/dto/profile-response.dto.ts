@@ -32,12 +32,6 @@ export class ProfileResponseDto {
   @ApiProperty({ enum: RacingInterest, isArray: true })
   favoriteCategories: RacingInterest[];
 
-  @ApiProperty({ example: 'Ayrton Senna', nullable: true })
-  favoriteDriver: string | null;
-
-  @ApiProperty({ example: 'Autódromo Hermanos Rodríguez', nullable: true })
-  favoriteTrack: string | null;
-
   @ApiProperty({ example: null, nullable: true, readOnly: true })
   avatarUrl: string | null;
 

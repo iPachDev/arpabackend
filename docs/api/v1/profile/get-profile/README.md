@@ -21,14 +21,11 @@ Devuelve el perfil del usuario autenticado. Requiere una sesión activa y acepta
   "country": "México",
   "racingNumber": 27,
   "favoriteCategories": ["karting", "gt"],
-  "favoriteDriver": "Ayrton Senna",
-  "favoriteTrack": "Autódromo Hermanos Rodríguez",
-  "avatarUrl": null,
-  "coverUrl": null
+  "avatarUrl": "https://arpa.nyc3.digitaloceanspaces.com/profiles/66f.../avatar/uuid.webp?X-Amz-Signature=...",
+  "coverUrl": "https://arpa.nyc3.digitaloceanspaces.com/profiles/66f.../cover/uuid.webp?X-Amz-Signature=..."
 }
 ```
 
-El correo es informativo y no se puede editar desde el perfil. La contraseña, el rol y los datos internos de la sesión nunca se incluyen.
+El correo es informativo y no se puede editar desde el perfil. La contraseña, el rol, las claves internas de los objetos y los datos de la sesión nunca se incluyen. Si existen una foto o una portada, `avatarUrl` y `coverUrl` son URLs firmadas temporales.
 
 En Swagger, la ruta muestra el requisito de cookie y el esquema `ProfileResponseDto`. Dentro del estándar BIAN, esta operación se agrupa en `Party Reference Data Directory` porque consulta información de referencia de una persona.
-

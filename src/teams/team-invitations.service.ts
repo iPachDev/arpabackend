@@ -28,6 +28,7 @@ import {
   Team,
   TeamDocument,
   TeamMemberRole,
+  TeamPrivacy,
   TeamStatus,
 } from './schemas/team.schema';
 
@@ -117,17 +118,19 @@ export class TeamInvitationsService {
     userId: string,
     slug: string,
   ): Promise<TeamRosterEntryDto[]> {
-    const team = await this.findAccessibleTeam(userId, slug);
-    await this.expirePendingInvitations(team._id);
+    const { team, isMember } = await this.findRosterTeam(userId, slug);
+    if (isMember) await this.expirePendingInvitations(team._id);
 
     const memberIds = (team.members ?? []).map((member) => member.userId);
     const [owner, memberUsers, invitations] = await Promise.all([
       this.userModel.findById(team.ownerId).exec(),
       this.userModel.find({ _id: { $in: memberIds } }).exec(),
-      this.invitationModel
-        .find({ teamId: team._id })
-        .sort({ createdAt: -1 })
-        .exec(),
+      isMember
+        ? this.invitationModel
+            .find({ teamId: team._id })
+            .sort({ createdAt: -1 })
+            .exec()
+        : Promise.resolve([]),
     ]);
 
     const entries: TeamRosterEntryDto[] = [];
@@ -135,7 +138,7 @@ export class TeamInvitationsService {
       entries.push({
         id: owner._id.toString(),
         name: owner.name,
-        email: owner.email,
+        email: isMember ? owner.email : null,
         sportsRole: 'Owner',
         membershipRole: TeamMemberRole.OWNER,
         status: TeamRosterStatus.OWNER,
@@ -156,7 +159,7 @@ export class TeamInvitationsService {
       entries.push({
         id: user._id.toString(),
         name: user.name,
-        email: user.email,
+        email: isMember ? user.email : null,
         sportsRole: member.sportsRole,
         membershipRole: member.role,
         status: TeamRosterStatus.ACCEPTED,
@@ -166,11 +169,13 @@ export class TeamInvitationsService {
       });
     }
 
-    entries.push(
-      ...invitations
-        .filter((item) => item.status !== TeamInvitationStatus.ACCEPTED)
-        .map((item) => this.invitationToRoster(item)),
-    );
+    if (isMember) {
+      entries.push(
+        ...invitations
+          .filter((item) => item.status !== TeamInvitationStatus.ACCEPTED)
+          .map((item) => this.invitationToRoster(item)),
+      );
+    }
     return entries;
   }
 
@@ -325,20 +330,27 @@ export class TeamInvitationsService {
     return team;
   }
 
-  private async findAccessibleTeam(
+  private async findRosterTeam(
     userId: string,
     slug: string,
-  ): Promise<TeamDocument> {
+  ): Promise<{ team: TeamDocument; isMember: boolean }> {
     const objectId = new Types.ObjectId(userId);
     const team = await this.teamModel
       .findOne({
         slug: slug.trim().toLowerCase(),
         status: TeamStatus.ACTIVE,
-        $or: [{ ownerId: objectId }, { 'members.userId': objectId }],
       })
       .exec();
     if (!team) throw new NotFoundException('El equipo no existe.');
-    return team;
+    const isMember =
+      team.ownerId.equals(objectId) ||
+      (team.members ?? []).some((member) => member.userId.equals(objectId));
+    const allowNonMembers =
+      team.allowNonMembers ?? team.privacy === TeamPrivacy.PUBLIC;
+    if (!isMember && (!allowNonMembers || !(team.showMembers ?? false))) {
+      throw new NotFoundException('Los integrantes del equipo no son visibles.');
+    }
+    return { team, isMember };
   }
 
   private async findManageableTeam(

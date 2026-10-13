@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,11 +8,18 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   Patch,
   Post,
   Req,
+  UploadedFiles,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiExtension,
   ApiNoContentResponse,
@@ -23,12 +31,14 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { PrivateImageValidator } from '../storage/private-image.validator';
 import { UserRole } from '../users/schemas/user.schema';
 import { ArchiveTeamDto } from './dto/archive-team.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
 import { CreateTeamInvitationDto } from './dto/create-team-invitation.dto';
 import { CreateTeamOwnershipTransferDto } from './dto/create-team-ownership-transfer.dto';
 import { TeamOwnershipTransferResponseDto } from './dto/team-ownership-transfer.dto';
+import { TeamImageKind } from './dto/team-image-kind.dto';
 import { TeamResponseDto } from './dto/team-response.dto';
 import { TeamRosterEntryDto } from './dto/team-roster-entry.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
@@ -64,6 +74,96 @@ export class TeamsController {
     return this.teamsService.create(request.user.id, createTeamDto);
   }
 
+  @Post(':slug/photos')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FilesInterceptor('files', 6, { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  @ApiExtension('x-bian-service-domain', 'Party Reference Data Directory')
+  @ApiExtension('x-bian-action-term', 'Update')
+  @ApiOperation({
+    operationId: 'uploadOwnedTeamPhotos',
+    summary: 'Subir fotos privadas de un equipo',
+    description:
+      'Carga hasta seis imágenes privadas y devuelve el equipo con URLs firmadas. Solo el owner puede realizar esta operación.',
+  })
+  @ApiParam({ name: 'slug', example: 'arpa-racing-team' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['files'],
+      properties: {
+        files: {
+          type: 'array',
+          maxItems: 6,
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: TeamResponseDto })
+  uploadPhotos(
+    @Req() request: AuthenticatedRequest,
+    @Param('slug') slug: string,
+    @UploadedFiles() files: Express.Multer.File[] | undefined,
+  ): Promise<TeamResponseDto> {
+    const uploadedFiles = files ?? [];
+    const imageValidator = new PrivateImageValidator();
+    if (
+      uploadedFiles.length === 0 ||
+      uploadedFiles.some((file) => !imageValidator.isValid(file))
+    ) {
+      throw new BadRequestException(
+        'Selecciona imágenes JPG, PNG o WebP válidas.',
+      );
+    }
+    return this.teamsService.uploadPhotos(request.user.id, slug, uploadedFiles);
+  }
+
+  @Post(':slug/images/:kind')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  @ApiExtension('x-bian-service-domain', 'Party Reference Data Directory')
+  @ApiExtension('x-bian-action-term', 'Update')
+  @ApiOperation({
+    operationId: 'uploadOwnedTeamImage',
+    summary: 'Subir logo o portada privada',
+    description:
+      'Reemplaza el logo o la portada del equipo y devuelve sus URLs firmadas. Solo el owner puede realizar esta operación.',
+  })
+  @ApiParam({ name: 'slug', example: 'arpa-racing-team' })
+  @ApiParam({ name: 'kind', enum: TeamImageKind })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({ type: TeamResponseDto })
+  uploadImage(
+    @Req() request: AuthenticatedRequest,
+    @Param('slug') slug: string,
+    @Param('kind', new ParseEnumPipe(TeamImageKind)) kind: TeamImageKind,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<TeamResponseDto> {
+    const imageValidator = new PrivateImageValidator();
+    if (!file || !imageValidator.isValid(file)) {
+      throw new BadRequestException(
+        'Selecciona una imagen JPG, PNG o WebP válida.',
+      );
+    }
+    return this.teamsService.uploadImage(request.user.id, slug, kind, file);
+  }
+
   @Get('mine')
   @Header('Cache-Control', 'no-store')
   @ApiExtension('x-bian-service-domain', 'Party Reference Data Directory')
@@ -87,7 +187,7 @@ export class TeamsController {
     operationId: 'listTeamMembersAndInvitations',
     summary: 'Consultar integrantes e invitaciones',
     description:
-      'Consulta el owner, integrantes aceptados y el historial de invitaciones del equipo.',
+      'Los integrantes consultan el roster completo. Un visitante autenticado solo recibe nombres y roles de integrantes aceptados cuando el equipo permite mostrar su perfil e integrantes; nunca se exponen correos ni invitaciones a visitantes.',
   })
   @ApiParam({ name: 'slug', example: 'arpa-racing-team' })
   @ApiOkResponse({ type: TeamRosterEntryDto, isArray: true })
@@ -168,16 +268,18 @@ export class TeamsController {
   @ApiExtension('x-bian-service-domain', 'Party Reference Data Directory')
   @ApiExtension('x-bian-action-term', 'Retrieve')
   @ApiOperation({
-    operationId: 'getMyTeamBySlug',
-    summary: 'Consultar un equipo propio',
+    operationId: 'getTeamProfileBySlug',
+    summary: 'Consultar el perfil compartible de un equipo',
+    description:
+      'Los usuarios autenticados pueden consultar equipos públicos. Para un visitante, los equipos privados exponen únicamente logo y portada.',
   })
   @ApiParam({ name: 'slug', example: 'arpa-racing-team' })
   @ApiOkResponse({ type: TeamResponseDto })
-  getMineBySlug(
+  getBySlug(
     @Req() request: AuthenticatedRequest,
     @Param('slug') slug: string,
   ): Promise<TeamResponseDto> {
-    return this.teamsService.getMineBySlug(request.user.id, slug);
+    return this.teamsService.getBySlug(request.user.id, slug);
   }
 
   @Patch(':slug')

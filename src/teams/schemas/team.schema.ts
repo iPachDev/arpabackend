@@ -56,17 +56,26 @@ export class Team {
   @Prop({ required: true, type: String, enum: TeamPrivacy })
   privacy: TeamPrivacy;
 
+  @Prop({ type: Boolean, default: false })
+  allowNonMembers: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  showMembers: boolean;
+
   @Prop({ required: true, trim: true, maxlength: 120 })
   location: string;
 
   @Prop({ required: true, trim: true, maxlength: 500 })
   description: string;
 
-  @Prop({ trim: true, maxlength: 2048, default: null })
-  logoImageUrl: string | null;
+  @Prop({ type: String, default: null, select: false })
+  logoObjectKey: string | null;
 
-  @Prop({ trim: true, maxlength: 2048, default: null })
-  coverImageUrl: string | null;
+  @Prop({ type: String, default: null, select: false })
+  coverObjectKey: string | null;
+
+  @Prop({ type: [String], default: [], select: false })
+  photoObjectKeys: string[];
 
   @Prop({ type: Types.ObjectId, ref: User.name, required: true, index: true })
   ownerId: Types.ObjectId;

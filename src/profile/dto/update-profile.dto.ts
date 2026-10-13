@@ -87,21 +87,4 @@ export class UpdateProfileDto {
   @ArrayMaxSize(6)
   @IsEnum(RacingInterest, { each: true })
   favoriteCategories?: RacingInterest[];
-
-  @ApiPropertyOptional({ example: 'Ayrton Senna', nullable: true })
-  @Transform(trimNullable)
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  favoriteDriver?: string | null;
-
-  @ApiPropertyOptional({
-    example: 'Autódromo Hermanos Rodríguez',
-    nullable: true,
-  })
-  @Transform(trimNullable)
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  favoriteTrack?: string | null;
 }

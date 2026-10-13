@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EmailModule } from '../email/email.module';
+import { StorageModule } from '../storage/storage.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import {
   TeamInvitation,
@@ -30,6 +31,7 @@ import { TeamsService } from './teams.service';
       { name: User.name, schema: UserSchema },
     ]),
     EmailModule,
+    StorageModule,
   ],
   controllers: [
     TeamsController,
